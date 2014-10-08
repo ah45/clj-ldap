@@ -376,9 +376,14 @@ If an LDAP connection pool object is passed as the connection argument
 the bind attempt will have no side-effects, leaving the state of the
 underlying connections unchanged."
   [connection bind-dn password]
-  (try 
-    (let [bind-result (.bind connection bind-dn password)]
-      (if (= ResultCode/SUCCESS (.getResultCode bind-result)) true false))
+  (try
+    (let [cp? (instance? LDAPConnectionPool connection)
+          c (if cp? (.getConnection connection) connection)]
+      (try
+        (let [r (.bind c bind-dn password)]
+          (= ResultCode/SUCCESS  (.getResultCode r)))
+        (catch LDAPException _ false)
+        (finally (if cp? (.releaseDefunctConnection connection c)))))
     (catch Exception _ false)))
 
 (defn get
