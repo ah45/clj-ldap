@@ -205,3 +205,16 @@
          false))
   (is (= (ldap/bind? *conn* (:dn person-c*) (-> person-c* :object :userPassword))
          false)))
+
+(deftest test-subtree-delete
+  (let [b {:dn (str "ou=Sub Tree," base*)
+           :object {:objectClass "organizationalUnit"}}
+        c {:dn (str "cn=Subtree Child," (:dn b))
+           :object {:objectClass "person" :sn "Child"}}]
+    (is (= (ldap/add *conn* (:dn b) (:object b)) success*))
+    (is (= (ldap/add *conn* (:dn c) (:object c)) success*))
+    (is (thrown-with-msg? LDAPException #"has one or more subordinate entries"
+                          (ldap/delete *conn* (:dn b))))
+    (is (= (ldap/delete *conn* (:dn b) {:delete-subtree true})
+           success*))
+    (is (nil? (ldap/get *conn* (:dn c))))))

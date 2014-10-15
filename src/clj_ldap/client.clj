@@ -31,7 +31,8 @@
             PostReadRequestControl
             PreReadResponseControl
             PostReadResponseControl
-            SimplePagedResultsControl])
+            SimplePagedResultsControl
+            SubtreeDeleteRequestControl])
   (:import [com.unboundid.util
             Base64])
   (:import [com.unboundid.util.ssl
@@ -220,7 +221,9 @@
   (when (contains? options :post-read)
     (let [attributes (map name (options :post-read))
           pre-read-control (PostReadRequestControl. (into-array attributes))]
-      (.addControl request pre-read-control))))
+      (.addControl request pre-read-control)))
+  (when (:delete-subtree options)
+    (.addControl request (SubtreeDeleteRequestControl.))))
 
 
 (defn- get-modify-request
@@ -466,8 +469,13 @@ returned either before or after the modifications have taken place."
 
 (defn delete
   "Deletes the given entry in the connected ldap server. Optionally takes
-   a map that can contain the entry :pre-read to indicate the attributes
-   that should be read before deletion."
+   a map that can contain the following options:
+
+      :pre-read       A collection of attributes that should be
+                      read before deletion
+      :delete-subtree A boolean dictating whether or not subordinate
+                      entries should also be deleted (default is false,
+                      with an error being raised if subordinate entries exist)"
   ([connection dn]
      (delete connection dn nil))
   ([connection dn options]
