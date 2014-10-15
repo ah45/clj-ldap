@@ -202,11 +202,14 @@ Throws a [LDAPSearchException](http://www.unboundid.com/products/ldap-sdk/docs/j
 
 ## delete [connection dn] [connection dn options]
 
-Deletes the given entry in the connected ldap server. Optionally takes a map that can contain the entry :pre-read to indicate the attributes that should be read before deletion.
+Deletes the given entry in the connected ldap server. Optionally takes a map that can contain the entry :pre-read to indicate the attributes that should be read before deletion and :delete-subtree which, when truthy, indicates that subordinate entries should also be deleted (defaults to false, raising an exception if they exist.)
 
      (ldap/delete conn "cn=dude,ou=people,dc=example,dc=com")
 
-     (ldap/delete conn "cn=dude,ou=people,dc=example,dc=com" 
+     (ldap/delete conn "cn=dude,ou=people,dc=example,dc=com"
                        {:pre-read #{"telephoneNumber"}})
-                       
+
+     (ldap/delete conn "cn=dude,ou=people,dc=example,dc=com"
+                       {:delete-subtree true})
+
 Throws a [LDAPException](http://www.unboundid.com/products/ldap-sdk/docs/javadoc/com/unboundid/ldap/sdk/LDAPException.html) if the object does not exist or an error occurs.
