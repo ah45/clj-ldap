@@ -1,61 +1,52 @@
 (ns clj-ldap.test.server
   "An embedded ldap server for unit testing"
-  (:require [clj-ldap.client :as ldap]
-            [fs.core :as fs])
-  (:import [org.apache.directory.server.core
-            DefaultDirectoryService
-            DirectoryService])
-  (:import [org.apache.directory.server.ldap
-            LdapServer])
-  (:import [org.apache.directory.server.protocol.shared.transport
-            TcpTransport])
-  (:import [java.util HashSet])
-  (:import [org.apache.directory.server.core.partition.impl.btree.jdbm
-            JdbmPartition
-            JdbmIndex]))
+  (:require [clojure.java.io :as io]
+            [clj-ldap.client :as ldap])
+  (:import [com.unboundid.util.ssl
+            KeyStoreKeyManager
+            TrustAllTrustManager
+            SSLUtil])
+  (:import [com.unboundid.ldap.listener
+            InMemoryDirectoryServer
+            InMemoryDirectoryServerConfig
+            InMemoryListenerConfig]))
 
 (defonce server (atom nil))
 
-(defn- add-partition! 
-  "Adds a partition to the embedded directory service"
-  [service id dn]
-  (let [partition (doto (JdbmPartition.)
-                    (.setId id)
-                    (.setSuffix dn))]
-    (.addPartition service partition)
-    partition))
+(def base-dn "dc=alienscience,dc=org,dc=uk")
 
-(defn- add-index!
-  "Adds an index to the given partition on the given attributes"
-  [partition & attrs]
-  (let [indexed-attrs (HashSet.)]
-    (doseq [attr attrs]
-      (.add indexed-attrs (JdbmIndex. attr)))
-    (.setIndexedAttributes partition indexed-attrs)))
+(def default-key-store "clj-ldap.ks")
+(def default-key-store-pin (char-array "clj-ldap"))
 
-(defn- start-ldap-server
-  "Start up an embedded ldap server"
+(defn ssl-socket-factory
+  []
+  (let [ks (KeyStoreKeyManager. (-> default-key-store io/resource io/file)
+                                default-key-store-pin)
+        tm (TrustAllTrustManager.)
+        ssl (SSLUtil. ks tm)]
+    (.createSSLServerSocketFactory ssl)))
+
+(defn generate-listener
+  [port]
+  (InMemoryListenerConfig/createLDAPConfig "ldap" port))
+
+(defn generate-ssl-listener
+  [port]
+  (InMemoryListenerConfig/createLDAPSConfig "ldaps" port (ssl-socket-factory)))
+
+(defn generate-config
   [port ssl-port]
-  (let [work-dir (fs/temp-dir (str "ldap-server-" port))
-        directory-service (doto (DefaultDirectoryService.)
-                            (.setShutdownHookEnabled true)
-                            (.setWorkingDirectory work-dir))
-        ldap-transport (TcpTransport. port)
-        ssl-transport (doto (TcpTransport. ssl-port)
-                        (.setEnableSSL true))
-        ldap-server (doto (LdapServer.)
-                      (.setDirectoryService directory-service)
-                      (.setAllowAnonymousAccess true)
-                      (.setTransports
-                       (into-array [ldap-transport ssl-transport])))]
-    (-> (add-partition! directory-service
-                        "clojure" "dc=alienscience,dc=org,dc=uk")
-        (add-index! "objectClass" "ou" "uid"))
-    (.startup directory-service)
-    (.start ldap-server)
-    [directory-service ldap-server]))
+  (doto (InMemoryDirectoryServerConfig. (into-array String [base-dn]))
+    (.setListenerConfigs [(generate-listener port)
+                          (generate-ssl-listener ssl-port)])))
 
-(defn- add-toplevel-objects!
+(defn start-ldap-server
+  "Start an embedded ldap server instance"
+  [config]
+  (doto (InMemoryDirectoryServer. config)
+    (.startListening)))
+
+(defn add-toplevel-objects!
   "Adds top level objects, needed for testing, to the ldap server"
   [connection]
   (ldap/add connection "dc=alienscience,dc=org,dc=uk"
@@ -75,15 +66,16 @@
   "Stops the embedded ldap server"
   []
   (if @server
-    (let [[directory-service ldap-server] @server]
-      (reset! server nil)
-      (.stop ldap-server)
-      (.shutdown directory-service))))
+    (.shutDown @server true)
+    (reset! server nil)))
 
 (defn start!
   "Starts an embedded ldap server on the given port"
-  [port ssl-port]
-  (stop!)
-  (reset! server (start-ldap-server port ssl-port))
-  (let [conn (ldap/connect {:host {:address "localhost" :port port}})]
-    (add-toplevel-objects! conn)))
+  ([port ssl-port]
+   (start! (generate-config port ssl-port)))
+  ([config]
+   (stop!)
+   (reset! server (start-ldap-server config))
+   (let [p (.getListenPort @server "ldap")
+         c (ldap/connect {:host {:address "localhost" :port p}})]
+     (add-toplevel-objects! c))))

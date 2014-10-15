@@ -3,10 +3,6 @@
   :url "https://github.com/ah45/clj-ldap"
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [com.unboundid/unboundid-ldapsdk "3.1.0"]]
-  :profiles {:dev {:dependencies
-                   [[org.apache.directory.server/apacheds-all "1.5.5"]
-                    [fs "1.3.3"]
-                    [org.slf4j/slf4j-simple "1.5.6"]]}}
   :aot [clj-ldap.client]
   :pom-addition [:developers
                  [:developer
