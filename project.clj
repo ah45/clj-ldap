@@ -1,4 +1,4 @@
-(defproject org.clojars.ah45/clj-ldap "0.0.9"
+(defproject org.clojars.ah45/clj-ldap "0.0.l0"
   :description "Clojure ldap client (fork of pauldorman/clj-ldap)"
   :url "https://github.com/ah45/clj-ldap"
   :dependencies [[org.clojure/clojure "1.6.0"]
